@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Warning — Centinel</title>
+<link rel="stylesheet" href="warning.css" />
+</head>
+<body>
+  <div class="card">
+    <div class="icon" id="level-icon">⚠️</div>
+    <h1 id="title">This site was blocked</h1>
+    <p class="url" id="url-display"></p>
+
+    <div class="score-row">
+      <div class="badge" id="level-badge"></div>
+      <div class="score" id="score-display"></div>
+    </div>
+
+    <h2>Why was this blocked?</h2>
+    <p id="explanation"></p>
+
+    <div id="indicators-section">
+      <h2>Indicators</h2>
+      <ul id="indicators-list"></ul>
+    </div>
+
+    <div id="recommendations-section">
+      <h2>Recommended Actions</h2>
+      <ul id="recommendations-list"></ul>
+    </div>
+
+    <div class="actions">
+      <button id="go-back-btn" class="btn primary">Go Back to Safety</button>
+      <button id="proceed-btn" class="btn danger">Proceed Anyway (Not Recommended)</button>
+    </div>
+    <p class="footer-note">This page was scanned by Centinel's AI threat engine. If you believe this is a mistake, you can proceed at your own risk.</p>
+  </div>
+  <script src="warning.js"></script>
+</body>
+</html>
