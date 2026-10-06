@@ -1,91 +1,86 @@
-# Centinel — Local Build
+# Centinel — Android App (Kotlin + Jetpack Compose)
 
-An AI-powered cybersecurity platform: backend + Android app + browser
-extension, matching the original spec's scope with URL, Website (redirect/
-JS/login-form analysis), Email (paste or `.eml` upload), Email Header, SMS,
-QR, File, Password, SSL, and Data Breach scanning, plus history, analytics,
-PDF reports, and notifications.
+This is source code only — I built and unit-tested the backend in this
+sandbox, but **compiling/running an Android app requires Android Studio and
+an SDK/emulator that aren't available in this environment**, so this hasn't
+been built or run. It's written to be opened directly in Android Studio and
+should compile with only the two setup steps below.
 
-## What's runnable right now
-- **`backend/`** — a real FastAPI service with a working offline heuristic
-  AI-scoring engine for every scan type. **I installed its dependencies and
-  ran its detection logic in this sandbox to confirm it works correctly**
-  (see test output earlier in this conversation). You can have it running
-  locally in about a minute — see `backend/README.md`.
+## Architecture
+MVVM: `ui/<feature>/XScreen.kt` (Compose) + `XViewModel.kt` → `data/repository/CentinelRepository.kt`
+→ `data/api/ApiService.kt` (Retrofit) → your locally running FastAPI backend.
 
-## What's code-only (not run here)
-- **`android/`** — the full Kotlin/Jetpack Compose app wired to that
-  backend. Building and running an Android app needs Android Studio + the
-  Android SDK/emulator, which this sandbox doesn't have, so **this code has
-  not been compiled or run**. It's structured to open cleanly in Android
-  Studio — see `android/README.md` for the two setup steps.
-- **`extension/`** — the Manifest V3 browser extension, also wired to the
-  same backend and sharing login/history with the Android app. I syntax-
-  checked every file (manifest JSON, all JS as ES modules, HTML structure)
-  but **this sandbox has no browser to actually load and click through
-  it in** — see `extension/README.md` for the two-minute "Load unpacked"
-  setup in Chrome/Edge/Brave.
+Every module from the spec has a real screen wired to a real backend endpoint:
+Dashboard (with rotating security tips), URL Scanner, Website Scanner
+(redirect-chain/JS/login-form analysis — distinct from URL Scanner), Email
+Scanner (paste text or upload a raw `.eml` file), Email Header Analyzer, SMS
+Scanner, QR Scanner (live camera via CameraX + ML Kit), File Scanner (SAF
+document picker), Password Analyzer, SSL Certificate Checker, Data Breach
+Checker, Scan History (search/filter/delete/PDF report download), Threat
+Analytics (donut + bar charts drawn with Compose's own `Canvas` API — see
+note below), Notifications, plus Login/Register with JWT + auto-refresh.
 
-## Recommended order
-1. `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
-   Confirm it works via `http://localhost:8000/docs`.
-2. Open `android/` in Android Studio, let it sync, set `API_BASE_URL` if needed,
-   and run on an emulator.
-3. Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer
-   mode → Load unpacked), log in with the same account as the app.
+PDF reports: each History row has a download icon that fetches
+`GET /report/{id}`, saves it to the app's external-files directory (no
+storage permission needed on any API level), and opens it via a
+`FileProvider`-backed chooser Intent (`data/reports/ReportDownloader.kt`).
 
-## Not included in this pass
-- An admin dashboard *screen* — the `/admin/*` API endpoints exist and are
-  RBAC-gated, but no UI consumes them yet (Android or otherwise).
-- Clipboard URL monitoring in the extension (optional in the spec — see
-  `extension/README.md` for why it's a deliberate omission, not an oversight).
-- Alembic migrations — PostgreSQL is supported (Phase 4), but schema
-  changes to an *existing* production database aren't handled beyond the
-  additive `create_all()` FastAPI already does on startup.
+**Charts note:** Analytics originally declared a Vico chart-library
+dependency, but I removed it in favor of hand-rolled donut/bar charts built
+on Compose's own `Canvas`/`drawArc` APIs (`ui/common/Charts.kt`). Vico's
+public API has shifted enough across versions that writing to it from
+memory — with no way to compile-check in this sandbox — seemed more likely
+to hand you a broken build than a plain-Canvas chart. If you'd rather use
+Vico (nicer animations, more chart types), re-add the dependency and swap
+the two composables in `AnalyticsScreen.kt`.
 
-## Phase 1, 2, 3, 4, 5 & 6 — done
+## 1. Open the project
+Open the `android/` folder directly in **Android Studio (Koala or newer)**.
+Studio will detect there's no Gradle wrapper jar and offer to regenerate
+it automatically — accept that, or run once manually:
+```bash
+gradle wrapper --gradle-version 8.7
+```
 
-**Phase 1:** rate limiting (actually enforced, not just configured),
-password reset, WHOIS domain-age scoring, scan history export.
+## 2. Point the app at your backend
+Start the backend first (see `../backend/README.md`). Then in
+`app/build.gradle.kts`, `API_BASE_URL` is already set to:
+- `http://10.0.2.2:8000/` — correct as-is for the **Android emulator** (this
+  is the emulator's alias for your host machine's localhost).
+- For a **physical device**, change it to your computer's LAN IP, e.g.
+  `http://192.168.1.42:8000/`, and make sure the phone is on the same
+  Wi-Fi network as the backend.
 
-**Phase 2:** RBAC/admin API endpoints, encryption at rest for scanned
-content, scoped HTTPS/cleartext enforcement.
+## 3. Run
+Click Run in Android Studio. Register a user, log in, and the Dashboard's
+tool grid gives you every module.
 
-**Phase 3:** Website Scanner (redirect-chain + JS + login-form/credential-
-exfiltration analysis, distinct from the URL Scanner), `.eml` file upload
-for the Email Scanner, PDF report download in the Android History screen,
-real donut/bar charts in Threat Analytics, rotating security tips on the
-Dashboard, and redirect-chain monitoring in the browser extension.
+## Push notifications (Firebase Cloud Messaging)
 
-**Phase 4:** PostgreSQL support (one env var, no code changes), Redis
-caching for repeated URL/website/SSL scans (graceful no-op if unreachable),
-optional S3/local-disk file persistence for the File Scanner (off by
-default), and Celery background processing for the two slowest scan types
-(`/scan/url/async`, `/scan/website/async` + task polling) — entirely
-opt-in; every scan still works synchronously with zero setup either way.
+Fully implemented in `notifications/CentinelFirebaseMessagingService.kt` —
+displays a local notification when a push arrives, requests the
+`POST_NOTIFICATIONS` runtime permission on Android 13+ (from the Dashboard,
+the first screen after login), and registers/refreshes the device's FCM
+token with the backend automatically (right after login, and again
+whenever FCM rotates the token via `onNewToken`). Logging out unregisters
+the current device.
 
-**Phase 5:** all five threat-intel providers from the original spec —
-VirusTotal (URL + file hash reputation), Google Safe Browsing, AbuseIPDB +
-real IP geolocation, HaveIBeenPwned, and SSL Labs grading — fully
-implemented in `backend/app/engine/threat_intel.py`, layering real
-reputation data on top of the offline heuristics the moment you add API
-keys. Zero keys configured = zero behavior change from Phase 4. I verified
-every provider's response-parsing logic against realistic mocked API
-responses; I couldn't hit the real live endpoints from this sandbox
-(no keys, no general internet access here), so that part is worth
-confirming once you've got real keys in hand.
+**The one remaining manual step is providing your own Firebase project**,
+since that's inherently something only you can do:
+1. Create a Firebase project, add an Android app with package
+   `com.centinel.app`, download `google-services.json` into `app/`.
+2. Uncomment `id("com.google.gms.google-services")`
+   (both the `plugins {}` block reference and the root `build.gradle.kts`
+   declaration are already there, just commented).
+3. On the **backend**, set `CENTINEL_FIREBASE_CREDENTIALS_PATH` to a
+   Firebase *service account* JSON (Project Settings → Service Accounts →
+   Generate new private key — a different file from `google-services.json`
+   above) — see `backend/README.md`'s "Push notifications" section.
 
-**Phase 6:** push notifications end-to-end — device token registration/
-unregistration endpoints, Firebase Admin push sending (with automatic
-pruning of invalid/expired tokens) on every High/Critical scan, and the
-full Android side (local notification display, runtime permission request,
-automatic token registration after login / unregistration on logout).
-Requires you to bring your own Firebase project either way (both the
-Android `google-services.json` and a backend service-account credential) —
-see `android/README.md` and `backend/README.md` for the two setup steps.
-In-app notifications (`GET /notifications`) have worked with zero setup
-since Phase 1 and are completely unaffected by whether Firebase is
-configured.
+Without that setup, `FirebaseMessaging.getInstance().token` calls fail
+gracefully (caught and logged, not crashed — see
+`data/push/FcmToken.kt`), and device registration silently never happens.
 
-See `backend/README.md`, `android/README.md`, and `extension/README.md`
-for the full breakdown of each.
+Either way, High/Critical alerts always still surface via the in-app
+**Notifications** screen (backed by `GET /notifications`), which works with
+zero extra setup and doesn't depend on Firebase at all.

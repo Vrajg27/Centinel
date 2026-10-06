@@ -1,0 +1,47 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/DALVIK VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+app/build/
+.gradle/
+
+# Android Studio & IntelliJ IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# User-specific & Local configuration
+local.properties
+
+# Log files & OS metadata
+*.log
+.DS_Store
+Thumbs.db
+
+# Sensitive Firebase & Keystore files (Add google-services.json back when deploying locally)
+# app/google-services.json
+*.keystore
+*.jks
+*.p12
+*.pem
+
+# IDE Artifacts & Scratch files
+.artifacts/
